@@ -1,0 +1,187 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#FDF6F8"><link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png"><title>BloomDaily</title>
+<style>
+:root{--pk:#FADADD;--lv:#E6E6FA;--cr:#FFFDF9;--pe:#FFE5D9;--ro:#D4748B;--tx:#4a3a40;--mu:#8b7880}
+*{box-sizing:border-box}body{margin:0;background:var(--cr);color:var(--tx);font:16px/1.5 Georgia,'Iowan Old Style',serif;padding:env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom))}
+#app{max-width:560px;margin:auto;padding:12px 14px}
+.card{background:#fff;border-radius:20px;padding:16px;margin:12px 0;box-shadow:0 4px 18px rgba(212,116,139,.12)}
+h2{font-size:1.15rem;margin:0 0 8px}h3{font-size:1rem;margin:12px 0 6px}small,.mu{color:var(--mu)}
+.hd{display:flex;gap:12px;align-items:center}.hd img{width:60px;height:60px;border-radius:16px;object-fit:contain;background:#fff;box-shadow:0 2px 10px rgba(212,116,139,.2)}
+input,textarea,select{width:100%;font:inherit;padding:11px;border:1.5px solid var(--lv);border-radius:14px;background:var(--cr);color:var(--tx);margin:4px 0}
+textarea{min-height:84px}button{font:inherit;border:0;border-radius:14px;padding:11px 16px;background:var(--ro);color:#fff;min-height:44px}
+button.g{background:var(--lv);color:var(--tx)}button.p{background:var(--pk);color:var(--tx)}
+.chip{display:inline-block;padding:8px 13px;margin:3px 4px 3px 0;border-radius:99px;background:var(--lv);min-height:0;color:var(--tx)}.chip.on{background:var(--ro);color:#fff}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}.row>button{flex:0 0 auto}
+.task{display:flex;gap:12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--pe);width:100%;background:none;color:var(--tx);text-align:left;border-radius:0}
+.task b{font-size:1.4rem;width:30px}.nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;padding:6px 4px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -4px 18px rgba(212,116,139,.15);z-index:5}
+.nav button{flex:1;background:none;color:var(--mu);padding:6px 0;font-size:.72rem;border-radius:12px}.nav button span{display:block;font-size:1.35rem}.nav .on{color:var(--ro);background:var(--pk)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}.cal button{padding:8px 0;min-height:40px;background:var(--cr);color:var(--tx);border-radius:12px;font-size:.85rem}
+.hi{background:#bfe3c8!important}.me{background:var(--pe)!important}.lo{background:var(--pk)!important}.pd{outline:2px solid var(--ro)}.sel{box-shadow:0 0 0 2px var(--tx)}
+.big{font-size:1.9rem;color:var(--ro)}.msg{background:var(--lv);border-radius:14px;padding:10px 12px;margin:6px 0}
+#sync{font-size:.75rem;color:var(--mu)}svg text{font:10px sans-serif;fill:var(--mu)}
+</style></head><body><div id="app"></div><nav class="nav" id="nav" hidden></nav>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const SB_URL='YOUR_SUPABASE_URL',SB_KEY='YOUR_SUPABASE_ANON_KEY';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+const $=s=>document.querySelector(s),pad=n=>String(n).padStart(2,'0');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,parse=s=>{const[a,b,c]=s.split('-');return new Date(+a,b-1,+c)};
+const addD=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return ymd(d)},diff=(a,b)=>Math.round((parse(a)-parse(b))/864e5),today=()=>ymd(new Date());
+const uid=()=>Math.random().toString(36).slice(2,10),avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+const hm=m=>m==null?'–':(m>=60?Math.floor(m/60)+'h ':'')+Math.round(m%60)+'m',tm=t=>{const[h,m]=t.split(':');return +h*60+ +m},fmt=m=>`${pad(Math.floor(m/60)%24)}:${pad(Math.round(m%60))}`;
+const DEF=['Drink a glass of warm water','Yoga – 30 minutes','Music practice – 1 hour (my own Kruthi)','Learn SQL – 1 hour','Internship work – 1 hour','Watch a favourite cartoon or film – 30 minutes','Morning skincare routine','Night skincare routine','Hair care','Take usirikaya (amla)','Eat chia and sabja seeds','Take flax seeds','Eat an egg',"Don't wait for anyone's message","Don't let anyone's message upset you"];
+const MOODS=[['Happy','😊'],['Calm','😌'],['Upset','😔'],['Anxious','😟'],['Mixed emotions','🥹']],CATS=['Food','Health & Self-Care','Travel','Study/Work','Shopping','Bills','Other'];
+const SYM=['Cramps','Lower back pain','Leg pain','Headache','Fatigue','Sleepiness','Mood swings','Irritability','Anxiety','Sadness','Bloating','Breast tenderness','Acne','Nausea','Appetite changes','Other'];
+const MCH=['My own Kruthi','Pallavi & Anupallavi','Charanam','Swaras','Voice practice','Revision'],PQ=['What happened today?','What made me happy?','What upset me?','What did I learn?','What am I proud of?','What should I improve tomorrow?'];
+/* ---------- local store + offline sync queue ---------- */
+let L=JSON.parse(localStorage.bd||'{"c":{},"q":[]}'),S={v:'today',date:today(),user:null,st:'offline',rng:'day',mr:'week',pm:today().slice(0,7),pmo:today().slice(0,7),sd:today(),q:''};
+const persist=()=>{try{localStorage.bd=JSON.stringify(L)}catch(e){}};
+const get=(k,key)=>{const v=L.c[k+'|'+key];return v&&!v._del?v:null};
+const all=k=>Object.entries(L.c).filter(([a,v])=>a.startsWith(k+'|')&&!v._del).map(([a,v])=>[a.slice(k.length+1),v]);
+function save(kind,key,data){L.c[kind+'|'+key]=data;L.q=L.q.filter(x=>x.k!==kind+'|'+key).concat({k:kind+'|'+key,kind,key,data});persist();flush()}
+let busy=0;async function flush(){if(busy||!S.user||!navigator.onLine){status();return}busy=1;
+ while(L.q.length){const x=L.q[0],{error}=await sb.from('records').upsert({user_id:S.user.id,kind:x.kind,key:x.key,data:x.data,updated_at:new Date().toISOString()},{onConflict:'user_id,kind,key'});if(error){busy=0;S.st='error: '+error.message;status();return}
+  if(L.q[0]===x)L.q.shift();persist()}busy=0;S.st='synced';status()}
+async function pull(){if(!S.user||!navigator.onLine)return;const{data,error}=await sb.from('records').select('kind,key,data');if(error)return;
+ const pend=new Set(L.q.map(x=>x.k));data.forEach(r=>{if(!pend.has(r.kind+'|'+r.key))L.c[r.kind+'|'+r.key]=r.data});persist()}
+function status(){const e=$('#sync');if(e)e.textContent=!navigator.onLine?`Offline · ${L.q.length} waiting to sync`:L.q.length?`Syncing ${L.q.length}…`:S.st}
+/* ---------- domain ---------- */
+const cfg=()=>get('settings','main')||{start:today(),target:70,routine:DEF.map((t,i)=>({id:'d'+i,t}))};
+const setCfg=p=>save('settings','main',{...cfg(),...p});
+const day=d=>get('day',d)||{};
+function setDay(d,p){const o={...day(d)};if(!o.items)o.items=cfg().routine.map(x=>({...x}));save('day',d,Object.assign(o,p))}
+const items=d=>day(d).items||cfg().routine,score=d=>{const t=day(d).tasks||{},it=items(d);return it.length?it.reduce((s,x)=>s+(t[x.id]||0),0)/it.length*100:0},rec=d=>Object.keys(day(d).tasks||{}).length>0;
+const sleepMin=d=>{const o=day(d);return o.wake&&o.sleep?(tm(o.wake)-tm(o.sleep)+1440)%1440:null};
+const spend=d=>all('exp').filter(([,e])=>e.date===d).reduce((s,[,e])=>s+ +e.amt,0);
+const pdays=()=>{const s=new Set();all('period').forEach(([,p])=>{if(!p.start)return;let e=p.end||p.start;for(let d=p.start;d<=e;d=addD(d,1))s.add(d)});return s};
+/* ---------- charts ---------- */
+function bars(a,unit){const m=Math.max(1,...a.map(x=>x.v||0)),w=300/a.length;
+ return `<svg viewBox="0 0 300 130" width="100%">${a.map((x,i)=>{const h=x.v==null?0:Math.max(2,x.v/m*90);return `<rect x="${i*w+w*.15}" y="${100-h}" width="${w*.7}" height="${h}" rx="4" fill="${x.v==null?'#eee':'#D4748B'}"/><text x="${i*w+w/2}" y="${x.v==null?96:94-h}" text-anchor="middle">${x.v==null?'':unit(x.v)}</text><text x="${i*w+w/2}" y="118" text-anchor="middle">${x.l}</text>`}).join('')}</svg>`}
+const series=(n,mode,fn)=>{const o=[];for(let i=n-1;i>=0;i--){if(mode==='day'){const d=addD(today(),-i);o.push({l:d.slice(8),v:fn([d])})}else if(mode==='week'){const ds=[...Array(7)].map((_,j)=>addD(today(),-i*7-j));o.push({l:'W-'+i,v:fn(ds)})}else{const d=new Date();d.setMonth(d.getMonth()-i,1);const p=ymd(d).slice(0,7),ds=[...Array(31)].map((_,j)=>p+'-'+pad(j+1));o.push({l:p.slice(5),v:fn(ds)})}}return o};
+/* ---------- views ---------- */
+const chip=(on,a,p,t)=>`<button class="chip ${on?'on':''}" data-a="${a}" data-p="${esc(p)}">${t}</button>`;
+const dsel=()=>`<div class="row"><button class="g" data-a="dd" data-p="-1">‹</button><input type="date" value="${S.date}" data-c="date"><button class="g" data-a="dd" data-p="1">›</button></div>`;
+function motivation(){const d=S.date,ds=[...Array(7)].map((_,i)=>addD(d,-i)).filter(x=>rec(x)),out=[];
+ if(!ds.length)return 'No check-ins yet. Mark whatever you did today, even partially—that is how the picture gets built.';
+ const cnt={};ds.forEach(x=>items(x).forEach(i=>{const v=(day(x).tasks||{})[i.id]||0;(cnt[i.t]=cnt[i.t]||[0,0])[0]+=v;cnt[i.t][1]++}));
+ const E=Object.entries(cnt),best=E.filter(([,v])=>v[1]>=3&&v[0]/v[1]>=.8).map(x=>x[0]),bad=E.filter(([,v])=>v[1]>=3&&v[0]/v[1]<=.25).map(x=>x[0]);
+ if(best.length)out.push(`You have been steady with: ${best.slice(0,3).join(', ')}.`);
+ if(bad.length)out.push(`"${bad[0]}" was missed on most recent days. Try shrinking it (a half version counts) or pairing it with something you already do.`);
+ const sl=ds.map(sleepMin).filter(x=>x!=null);if(sl.length)out.push(avg(sl)<420?`Sleep is averaging ${hm(avg(sl))}, a little short—an earlier bedtime may help your mood and focus.`:`Sleep is averaging ${hm(avg(sl))}, which looks healthy.`);
+ const mu=ds.filter(x=>day(x).music?.min>0).length;out.push(mu?`You practiced music on ${mu} of your last ${ds.length} logged days.`:'No music practice logged recently. Even 15 minutes keeps the habit alive.');
+ if(ds.some(x=>(day(x).moods||[]).some(m=>m==='Upset'||m==='Anxious')))out.push("Hard feelings showed up this week. That's allowed; your two boundary tasks are there for those moments.");
+ return out.join(' ')}
+function recall(){const d=S.date,c=[];for(let i=1;i<=4;i++){const x=addD(d,-i),o=day(x);
+ if(o.music?.next)c.push(`On ${x} you planned to practice: "${o.music.next}". How did it go?`);
+ const t=o.tasks||{};items(x).forEach(it=>{if(t[it.id]===0)c.push(`You marked "${it.t}" as not done on ${x}. What got in the way?`)});
+ if(o.diary?.free)c.push(`You wrote on ${x}: "${o.diary.free.slice(0,80)}…" Anything you'd add now?`);
+ if((o.moods||[]).length)c.push(`You felt ${o.moods.join(' + ')} on ${x}. How are you feeling about that now?`);
+ all('exp').filter(([,e])=>e.date===x).forEach(([,e])=>c.push(`You spent ₹${e.amt} on ${e.cat} (${e.note||'no note'}) on ${x}. Was it worth it?`))}
+ if(!c.length)return '';if(!S.rq||S.rqd!==d){S.rq=c[Math.floor(Math.random()*c.length)];S.rqd=d}
+ const a=day(d).recall||[];return `<div class="card" style="background:var(--lv)"><h2>Check-in & recall</h2><p>${esc(S.rq)}</p><input id="ra" placeholder="Quick answer"><button data-a="ra">Save answer</button>${a.slice(-2).map(x=>`<div class="msg"><small>${esc(x.q)}</small><br>${esc(x.a)}</div>`).join('')}</div>`}
+function vToday(){const d=S.date,t=day(d).tasks||{},it=items(d),p=score(d),dn=it.filter(x=>t[x.id]===1).length,pt=it.filter(x=>t[x.id]===.5).length,o=day(d),c=2*Math.PI*52,cf=cfg();
+ return `<div class="card hd"><img src="${logo()}" alt="BloomDaily logo"><div><b>${parse(d).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</b><br><small>Journey day ${diff(d,cf.start)+1} · <span id="sync"></span></small></div></div>
+ <div class="card">${dsel()}<div class="row" style="margin-top:8px"><svg viewBox="0 0 120 120" width="120" style="flex:0 0 120px"><circle cx="60" cy="60" r="52" fill="none" stroke="#FADADD" stroke-width="10"/><circle cx="60" cy="60" r="52" fill="none" stroke="#D4748B" stroke-width="10" stroke-linecap="round" stroke-dasharray="${c*p/100} ${c}" transform="rotate(-90 60 60)"/><text x="60" y="68" text-anchor="middle" style="font:700 24px Georgia;fill:#4a3a40">${Math.round(p)}%</text></svg>
+ <div>✅ ${dn} completed<br>🟡 ${pt} partial<br>❌ ${it.length-dn-pt} missed<br><small>Target ${cf.target}% ${p>=cf.target?'· reached 🌷':''}</small></div></div>
+ <small>Mood ${(o.moods||[]).join(', ')||'–'} · Wake ${o.wake||'–'} · Sleep ${o.sleep||'–'} · Music ${o.music?.min!=null?hm(o.music.min):'–'} · Spent ₹${spend(d)}</small></div>
+ <div class="card"><h2>Today's note</h2><div class="msg">${esc(motivation())}</div></div>${recall()}
+ <div class="card"><h2>Checklist</h2>${it.map(x=>`<button class="task" data-a="tog" data-p="${x.id}"><b>${t[x.id]===1?'✅':t[x.id]===.5?'🟡':'❌'}</b>${esc(x.t)}</button>`).join('')}<small>Tap to cycle: completed → partial → not done.</small></div>`}
+function vMusic(){const d=S.date,m=day(d).music||{},y=day(addD(d,-1)).music,pre=[30,45,60,90];
+ const ser=series(S.mr==='week'?7:30,'day',([x])=>{const k=day(x).music;return k&&k.min!=null?k.min:null});
+ return `<div class="card"><h2>🎶 Music practice</h2>${dsel()}${y?.next?`<div class="msg">Plan from yesterday: ${esc(y.next)}</div>`:''}
+ <h3>Duration (minutes)</h3><input type="number" min="0" inputmode="numeric" value="${m.min??''}" data-c="mmin" placeholder="e.g. 45">${pre.map(x=>chip(m.min===x,'mp',x,hm(x))).join('')}<button class="g" data-a="mp" data-p="0">No practice today</button>
+ <h3>What I practiced today</h3><textarea data-c="mdid">${esc(m.did||'')}</textarea>${MCH.map(x=>chip(0,'mc','did|'+x,x)).join('')}
+ <h3>What I should practice tomorrow</h3><textarea data-c="mnext">${esc(m.next||'')}</textarea>${MCH.map(x=>chip(0,'mc','next|'+x,x)).join('')}</div>
+ <div class="card"><h2>Practice chart</h2>${chip(S.mr==='week','mr','week','Weekly')}${chip(S.mr==='month','mr','month','Monthly')}${bars(ser,hm)}<small>Empty grey bars = not logged (not counted as zero). 0m = confirmed no practice.</small></div>`}
+function vWell(){const d=S.date,o=day(d),dr=o.diary||{},q=S.q.toLowerCase(),sl=sleepMin(d);
+ const hits=q?all('day').filter(([k,v])=>v.diary&&JSON.stringify(v.diary).toLowerCase().includes(q)).sort().reverse().slice(0,8):[];
+ const sd=series(7,'day',([x])=>{const s=sleepMin(x);return s==null?null:s});
+ return `<div class="card"><h2>💗 Sleep & wake-up</h2>${dsel()}<div class="row"><div><small>Woke up</small><input type="time" value="${o.wake||''}" data-c="wake"></div><div><small>Went to sleep</small><input type="time" value="${o.sleep||''}" data-c="sleep"></div></div><p>Sleep duration: <b>${hm(sl)}</b></p>${bars(sd,hm)}</div>
+ <div class="card"><h2>Mood</h2>${MOODS.map(([n,e])=>chip((o.moods||[]).includes(n),'mood',n,e+' '+n)).join('')}</div>
+ <div class="card"><h2>📔 Diary</h2>${PQ.map((p,i)=>`<small>${p}</small><textarea data-c="dq" data-i="${i}">${esc(dr['q'+i]||'')}</textarea>`).join('')}<small>Anything else from today</small><textarea data-c="dq" data-i="free" style="min-height:140px">${esc(dr.free||'')}</textarea></div>
+ <div class="card"><h2>Search diary</h2><input id="srch" value="${esc(S.q)}" placeholder="Search words…" data-c="srch">${hits.map(([k,v])=>`<div class="msg"><button class="g" data-a="go" data-p="${k}">${k}</button> ${esc(Object.values(v.diary).join(' ').slice(0,120))}</div>`).join('')}</div>`}
+function vPeriod(){const P=all('period').sort(),ps=pdays(),starts=P.map(([,p])=>p.start).filter(Boolean).sort(),cl=starts.slice(1).map((s,i)=>diff(s,starts[i])),dur=P.map(([,p])=>p.end?diff(p.end,p.start)+1:null).filter(x=>x),
+ nx=starts.length&&cl.length?addD(starts[starts.length-1],Math.round(avg(cl))):null,[y,m]=S.pm.split('-').map(Number),f=new Date(y,m-1,1).getDay(),n=new Date(y,m,0).getDate(),sym=(get('psym',S.sd)||{}).t||[];
+ return `<div class="card"><h2>🌷 Log a period</h2><div class="row"><div><small>Start</small><input type="date" id="ps"></div><div><small>End</small><input type="date" id="pe"></div></div><select id="pf"><option>Light</option><option selected>Medium</option><option>Heavy</option></select><input id="pn" placeholder="Notes"><button data-a="padd">Save period</button></div>
+ <div class="card"><h2>Cycle insights</h2>Average cycle: <b>${cl.length?Math.round(avg(cl))+' days':'needs 2+ periods'}</b><br>Average period: <b>${dur.length?avg(dur).toFixed(1)+' days':'–'}</b><br>Estimated next period: <b>${nx||'–'}</b><br><small>An estimate from your own history, not medical advice.</small></div>
+ <div class="card"><div class="row"><button class="g" data-a="pm" data-p="-1">‹</button><b style="text-align:center">${S.pm}</b><button class="g" data-a="pm" data-p="1">›</button></div><div class="cal">${[...'SMTWTFS'].map(x=>`<small>${x}</small>`).join('')}${'<i></i>'.repeat(f)}${[...Array(n)].map((_,i)=>{const d=S.pm+'-'+pad(i+1);return `<button class="${ps.has(d)?'lo pd':''} ${d===S.sd?'sel':''}" data-a="psd" data-p="${d}">${i+1}</button>`}).join('')}</div></div>
+ <div class="card"><h2>Symptoms · ${S.sd}</h2>${SYM.map(x=>chip(sym.includes(x),'sym',x,x)).join('')}<div class="row"><input id="cs" placeholder="Custom symptom"><button data-a="csym">Add</button></div></div>
+ <div class="card"><h2>History</h2>${P.reverse().map(([k,p])=>`<div class="msg">${p.start} → ${p.end||'ongoing'} · ${p.flow}${p.end?' · '+(diff(p.end,p.start)+1)+'d':''}<br><small>${esc(p.notes||'')}</small> <button class="g" data-a="pdel" data-p="${k}">Delete</button></div>`).join('')||'<small>No periods logged yet.</small>'}</div>`}
+function vExp(){const d=S.date,E=all('exp').filter(([,e])=>e.date===d);
+ const ser=series(S.rng==='day'?7:S.rng==='week'?8:6,S.rng,ds=>ds.reduce((s,x)=>s+spend(x),0));
+ return `<div class="card"><h2>💸 Add expense</h2>${dsel()}<input type="number" id="ea" inputmode="decimal" placeholder="Amount ₹"><select id="ec">${CATS.map(c=>`<option>${c}</option>`).join('')}</select><input id="en" placeholder="Why I spent this"><input type="file" id="ef" accept="image/*"><button data-a="eadd">Save expense</button></div>
+ <div class="card"><h2>${d} · ₹${spend(d)}</h2>${E.map(([k,e])=>`<div class="msg">₹${e.amt} · ${e.cat}<br><small>${esc(e.note||'')}</small><br>${e.img?`<button class="g" data-a="rcpt" data-p="${e.img}">View receipt</button> `:''}<button class="g" data-a="edel" data-p="${k}">Delete</button></div>`).join('')||'<small>No expenses for this day.</small>'}</div>
+ <div class="card"><h2>Spending</h2>${['day','week','month'].map(x=>chip(S.rng===x,'rng',x,x[0].toUpperCase()+x.slice(1))).join('')}${bars(ser,v=>Math.round(v))}</div>`}
+function weekStats(end){const ds=[...Array(7)].map((_,i)=>addD(end,-i)).filter(rec);const hab={};ds.forEach(x=>items(x).forEach(i=>{(hab[i.t]=hab[i.t]||[0,0])[0]+=(day(x).tasks||{})[i.id]||0;hab[i.t][1]++}));
+ const H=Object.entries(hab).map(([t,v])=>[t,v[0]/v[1]]).sort((a,b)=>b[1]-a[1]),all7=[...Array(7)].map((_,i)=>addD(end,-i)),mc={};ds.forEach(x=>(day(x).moods||[]).forEach(m=>mc[m]=(mc[m]||0)+1));
+ const wk=ds.map(x=>day(x).wake).filter(Boolean).map(tm),sl=ds.map(sleepMin).filter(x=>x!=null),srt=[...ds].sort((a,b)=>score(b)-score(a));
+ return {n:ds.length,p:avg(ds.map(score)),best:srt[0],low:srt[srt.length-1],top:H[0],miss:H[H.length-1],mu:all7.reduce((s,x)=>s+(day(x).music?.min||0),0),wk:wk.length?fmt(avg(wk)):'–',sl:sl.length?avg(sl):null,mc,sp:all7.reduce((s,x)=>s+spend(x),0)}}
+function review(){const a=weekStats(today()),b=weekStats(addD(today(),-7));if(!a.n)return '<small>Check in on a few days and your review will appear here.</small>';
+ const dl=a.p-b.p,tips=[];if(a.miss&&a.miss[1]<.4)tips.push(`Redesign "${a.miss[0]}": make it smaller or move it to a fixed time.`);if(a.sl&&a.sl<420)tips.push('Try a consistent bedtime to lift sleep above 7 hours.');if(a.mu<150)tips.push('Aim for short daily practice (20–30 min) rather than one long session.');if(a.p>=70)tips.push('Strong week—protect it by keeping tomorrow\'s plan small and clear.');
+ return `<p>Average progress <b>${Math.round(a.p)}%</b> ${b.n?`(${dl>=0?'+':''}${Math.round(dl)} vs last week)`:''} across ${a.n} logged days.</p><p>Best day ${a.best} (${Math.round(score(a.best))}%) · lowest ${a.low} (${Math.round(score(a.low))}%)<br>Most completed: ${esc(a.top?.[0]||'–')}<br>Most missed: ${esc(a.miss?.[0]||'–')}<br>Music ${hm(a.mu)} (last week ${hm(b.mu)})<br>Avg wake ${a.wk} · Avg sleep ${hm(a.sl)}<br>Moods ${Object.entries(a.mc).map(([k,v])=>k+' ×'+v).join(', ')||'–'}<br>Spent ₹${a.sp} (last week ₹${b.sp})</p>${tips.map(t=>`<div class="msg">${t}</div>`).join('')}`}
+function vProg(){const [y,m]=S.pmo.split('-').map(Number),f=new Date(y,m-1,1).getDay(),n=new Date(y,m,0).getDate(),ps=pdays(),D=all('day').filter(([k])=>rec(k)).map(x=>x[0]).sort();
+ let st=0,c=today();if(!rec(c))c=addD(c,-1);while(rec(c)){st++;c=addD(c,-1)}
+ const done=D.reduce((s,k)=>s+items(k).filter(i=>day(k).tasks[i.id]===1).length,0),mu=all('day').reduce((s,[,v])=>s+(v.music?.min||0),0);
+ const tr=(l,fn,u)=>`<h3>${l}</h3>${bars(series(14,'day',([x])=>fn(x)),u)}`;
+ return `<div class="card"><h2>📊 History</h2><div class="row"><button class="g" data-a="pmo" data-p="-1">‹</button><b style="text-align:center">${S.pmo}</b><button class="g" data-a="pmo" data-p="1">›</button></div><div class="cal">${[...'SMTWTFS'].map(x=>`<small>${x}</small>`).join('')}${'<i></i>'.repeat(f)}${[...Array(n)].map((_,i)=>{const d=S.pmo+'-'+pad(i+1),p=score(d);return `<button class="${rec(d)?(p>=70?'hi':p>=40?'me':'lo'):''} ${ps.has(d)?'pd':''} ${d===S.date?'sel':''}" data-a="go" data-p="${d}">${i+1}</button>`}).join('')}</div><small>Green high · peach medium · pink low · plain = no record · outlined = period. Tap a date to view and edit it.</small></div>
+ <div class="card"><h2>Stats</h2>Recorded days <b>${D.length}</b> · Tasks completed <b>${done}</b> · Music <b>${hm(mu)}</b><br>Check-in streak <b>${st}</b> days<br>Average progress (7d) <b>${Math.round(weekStats(today()).p)}%</b></div>
+ <div class="card">${tr('Daily progress %',x=>rec(x)?Math.round(score(x)):null,v=>v)}${tr('Sleep',x=>sleepMin(x),hm)}${tr('Wake-up (hour)',x=>day(x).wake?+(tm(day(x).wake)/60).toFixed(1):null,v=>v)}</div>
+ <div class="card"><h2>Weekly review</h2>${review()}</div>`}
+function vSet(){const c=cfg();
+ return `<div class="card"><h2>⚙️ Cloud & account</h2><p>${esc(S.user?.email||'')}<br><small id="sync"></small></p><button data-a="sync">Sync now</button> <button class="g" data-a="out">Sign out</button></div>
+ <div class="card"><h2>Tracking</h2><small>Tracking start date</small><input type="date" value="${c.start}" data-c="start"><small>Daily progress target %</small><input type="number" value="${c.target}" data-c="target"></div>
+ <div class="card"><h2>App logo</h2><img src="${logo()}" width="96" height="96" style="border-radius:20px;object-fit:contain"><input type="file" accept="image/*" data-c="logo"><button class="g" data-a="logoreset">Use default logo</button></div>
+ <div class="card"><h2>Routine</h2><small>Changes apply from today onward; past days keep their own list.</small>${c.routine.map((x,i)=>`<div class="row"><input value="${esc(x.t)}" data-c="rt" data-i="${i}"><button class="g" data-a="rup" data-p="${i}">↑</button><button class="g" data-a="rdn" data-p="${i}">↓</button><button class="p" data-a="rdel" data-p="${i}">✕</button></div>`).join('')}<div class="row"><input id="rnew" placeholder="New activity"><button data-a="radd">Add</button></div></div>
+ <div class="card"><h2>Backup</h2><button data-a="ejson">Export JSON</button> <button class="g" data-a="ecsv">Export CSV</button><p><small>Restore from JSON</small><input type="file" accept=".json" data-c="import"></p></div>`}
+const logo=()=>L.logo||'icons/icon-192.png';
+const V={today:vToday,music:vMusic,well:vWell,period:vPeriod,exp:vExp,prog:vProg,set:vSet};
+const TABS=[['today','🏠','Today'],['music','🎶','Music'],['well','💗','Wellness'],['period','🌷','Period'],['exp','💸','Expenses'],['more','⋯','More']];
+function render(){const app=$('#app'),nav=$('#nav');
+ if(!S.user){nav.hidden=1;app.innerHTML=`<div class="card" style="margin-top:12vh;text-align:center"><img src="icons/icon-192.png" width="120" height="120" alt="BloomDaily"><h2>BloomDaily</h2><input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (6+ characters)"><button data-a="in">Sign in</button> <button class="g" data-a="up">Create account</button><p id="ae" class="mu"></p></div>`;return}
+ nav.hidden=0;const act=['prog','set'].includes(S.v)?'more':S.v;nav.innerHTML=TABS.map(([k,i,t])=>`<button class="${act===k?'on':''}" data-a="v" data-p="${k}"><span>${i}</span>${t}</button>`).join('');
+ const y=scrollY;app.innerHTML=(S.v==='more'?`<div class="card"><h2>More</h2><button data-a="v" data-p="prog">📊 Progress & Review</button> <button class="g" data-a="v" data-p="set">⚙️ Settings</button></div>`:'')+(S.v==='more'?'':V[S.v]());status();scrollTo(0,y)}
+/* ---------- actions ---------- */
+const setMusic=p=>setDay(S.date,{music:{...(day(S.date).music||{}),...p}});
+const A={v:p=>{S.v=p;render();scrollTo(0,0)},dd:p=>{S.date=addD(S.date,+p);render()},go:p=>{S.date=p;S.v='today';render()},
+ tog:p=>{const t={...(day(S.date).tasks||{})},c=t[p]||0;t[p]=c===0?1:c===1?.5:0;setDay(S.date,{tasks:t});render()},
+ ra:()=>{const a=$('#ra').value.trim();if(!a)return;setDay(S.date,{recall:[...(day(S.date).recall||[]),{q:S.rq,a}]});render()},
+ mp:p=>{setMusic({min:+p});render()},mc:p=>{const[f,t]=p.split('|'),m=day(S.date).music||{};setMusic({[f]:(m[f]?m[f]+', ':'')+t});render()},mr:p=>{S.mr=p;render()},
+ mood:p=>{const m=day(S.date).moods||[];setDay(S.date,{moods:m.includes(p)?m.filter(x=>x!==p):[...m,p]});render()},
+ padd:()=>{const s=$('#ps').value;if(!s)return alert('Pick a start date');const e=$('#pe').value;if(e&&e<s)return alert('End date is before start');save('period',s,{start:s,end:e,flow:$('#pf').value,notes:$('#pn').value});render()},
+ pdel:p=>{if(confirm('Delete this period?')){save('period',p,{_del:1});render()}},pm:p=>{const d=parse(S.pm+'-01');d.setMonth(d.getMonth()+ +p);S.pm=ymd(d).slice(0,7);render()},psd:p=>{S.sd=p;render()},
+ sym:p=>{const t=(get('psym',S.sd)||{}).t||[];save('psym',S.sd,{t:t.includes(p)?t.filter(x=>x!==p):[...t,p]});render()},csym:()=>{const v=$('#cs').value.trim();if(v){A.sym(v)}},
+ rng:p=>{S.rng=p;render()},pmo:p=>{const d=parse(S.pmo+'-01');d.setMonth(d.getMonth()+ +p);S.pmo=ymd(d).slice(0,7);render()},
+ eadd:async()=>{const amt=+$('#ea').value;if(!(amt>0))return alert('Enter an amount');const id=uid(),f=$('#ef').files[0];let img=null;
+  if(f&&S.user&&navigator.onLine){const path=`${S.user.id}/receipts/${id}.${(f.name.split('.').pop()||'jpg').toLowerCase()}`,{error}=await sb.storage.from('media').upload(path,f);if(error)alert('Receipt upload failed: '+error.message);else img=path}else if(f)alert('You are offline, so the receipt was not attached. Expense saved without it.');
+  save('exp',id,{date:S.date,amt,cat:$('#ec').value,note:$('#en').value,img});render()},
+ edel:p=>{save('exp',p,{_del:1});render()},rcpt:async p=>{const{data}=await sb.storage.from('media').createSignedUrl(p,300);if(data)open(data.signedUrl)},
+ radd:()=>{const v=$('#rnew').value.trim();if(v){const c=cfg();setCfg({routine:[...c.routine,{id:uid(),t:v}]});render()}},
+ rdel:p=>{const c=cfg();setCfg({routine:c.routine.filter((_,i)=>i!=p)});render()},
+ rup:p=>{p=+p;if(!p)return;const r=[...cfg().routine];[r[p-1],r[p]]=[r[p],r[p-1]];setCfg({routine:r});render()},
+ rdn:p=>{p=+p;const r=[...cfg().routine];if(p>=r.length-1)return;[r[p+1],r[p]]=[r[p],r[p+1]];setCfg({routine:r});render()},
+ sync:async()=>{await flush();await pull();render()},out:async()=>{await sb.auth.signOut()},
+ logoreset:()=>{delete L.logo;persist();render()},
+ ejson:()=>dl('bloomdaily-backup.json',JSON.stringify({v:1,at:new Date().toISOString(),records:L.c},null,1),'application/json'),
+ ecsv:()=>dl('bloomdaily-backup.csv','kind,key,data\n'+Object.entries(L.c).filter(([,v])=>!v._del).map(([k,v])=>{const[a,...b]=k.split('|');return [a,b.join('|'),JSON.stringify(v)].map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(',')}).join('\n'),'text/csv'),
+ in:async()=>{const{error}=await sb.auth.signInWithPassword({email:$('#em').value,password:$('#pw').value});if(error)$('#ae').textContent=error.message},
+ up:async()=>{const{error,data}=await sb.auth.signUp({email:$('#em').value,password:$('#pw').value});$('#ae').textContent=error?error.message:data.session?'':'Check your email to confirm, then sign in.'}};
+function dl(n,t,m){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:m}));a.download=n;a.click()}
+const rd=f=>new Promise(r=>{const x=new FileReader;x.onload=()=>r(x.result);x.readAsDataURL(f)});
+const Hc={date:v=>{if(v){S.date=v;render()}},mmin:v=>setMusic({min:v===''?undefined:+v}),mdid:v=>setMusic({did:v}),mnext:v=>setMusic({next:v}),
+ wake:v=>{setDay(S.date,{wake:v});render()},sleep:v=>{setDay(S.date,{sleep:v});render()},
+ dq:(v,e)=>setDay(S.date,{diary:{...(day(S.date).diary||{}),[e.dataset.i==='free'?'free':'q'+e.dataset.i]:v}}),srch:v=>{S.q=v;render()},
+ start:v=>v&&setCfg({start:v}),target:v=>setCfg({target:+v||70}),rt:(v,e)=>{const r=cfg().routine.map((x,i)=>i==e.dataset.i?{...x,t:v}:x);setCfg({routine:r})},
+ logo:async(v,e)=>{const f=e.files[0];if(!f)return;L.logo=await rd(f);persist();if(S.user&&navigator.onLine)await sb.storage.from('media').upload(`${S.user.id}/logo`,f,{upsert:true,contentType:f.type});render()},
+ import:async(v,e)=>{try{const j=JSON.parse(await e.files[0].text());if(!j.records)throw 0;Object.entries(j.records).forEach(([k,d])=>{const[a,...b]=k.split('|');save(a,b.join('|'),d)});alert('Backup restored');render()}catch{alert('That file is not a valid BloomDaily backup.')}}};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b)A[b.dataset.a]?.(b.dataset.p)});
+document.addEventListener('change',e=>{const c=e.target.dataset.c;if(c)Hc[c]?.(e.target.value,e.target)});
+addEventListener('online',()=>{flush();pull()});addEventListener('offline',status);
+/* ---------- boot ---------- */
+async function loadLogo(){if(!S.user||L.logo||!navigator.onLine)return;const{data}=await sb.storage.from('media').createSignedUrl(`${S.user.id}/logo`,3600);if(!data)return;try{const b=await (await fetch(data.signedUrl)).blob();L.logo=await rd(b);persist();render()}catch{}}
+sb.auth.onAuthStateChange(async(_,s)=>{S.user=s?.user||null;render();if(S.user){await pull();if(!get('settings','main'))setCfg({});render();flush();loadLogo()}});
+if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js'));
+render();
+</script></body></html>
