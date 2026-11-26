@@ -24,7 +24,7 @@ button.g{background:var(--lv);color:var(--tx)}button.p{background:var(--pk);colo
 </style></head><body><div id="app"></div><nav class="nav" id="nav" hidden></nav>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
-const SB_URL='YOUR_SUPABASE_URL',SB_KEY='YOUR_SUPABASE_ANON_KEY';
+const SB_URL='https://vwteosvzzekykqmrydxb.supabase.co',SB_KEY='sb_publishable_yE2jZq0BeF_25OW3msn5yw_hO6jUC86';
 const sb=supabase.createClient(SB_URL,SB_KEY);
 const $=s=>document.querySelector(s),pad=n=>String(n).padStart(2,'0');
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -33,8 +33,7 @@ const addD=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return ymd(d)},diff
 const uid=()=>Math.random().toString(36).slice(2,10),avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
 const hm=m=>m==null?'–':(m>=60?Math.floor(m/60)+'h ':'')+Math.round(m%60)+'m',tm=t=>{const[h,m]=t.split(':');return +h*60+ +m},fmt=m=>`${pad(Math.floor(m/60)%24)}:${pad(Math.round(m%60))}`;
 const DEF=['Drink a glass of warm water','Yoga – 30 minutes','Music practice – 1 hour (my own Kruthi)','Learn SQL – 1 hour','Internship work – 1 hour','Watch a favourite cartoon or film – 30 minutes','Morning skincare routine','Night skincare routine','Hair care','Take usirikaya (amla)','Eat chia and sabja seeds','Take flax seeds','Eat an egg',"Don't wait for anyone's message","Don't let anyone's message upset you"];
-const MOODS=[['Happy','😊'],['Calm','😌'],['Upset','😔'],['Anxious','😟'],['Mixed emotions','🥹']],CATS=['Food','Health & Self-Care','Travel','Study/Work','Shopping','Bills','Other'];
-const SYM=['Cramps','Lower back pain','Leg pain','Headache','Fatigue','Sleepiness','Mood swings','Irritability','Anxiety','Sadness','Bloating','Breast tenderness','Acne','Nausea','Appetite changes','Other'];
+const MOODS=[['Happy','😊'],['Calm','😌'],['Jolly','💃🏻'],['Upset','😔'],['Anxious','😟'],['Mixed emotions','🥹']],CATS=['Food','Health & Self-Care','Travel','Study/Work','Shopping','Bills','Other'];const SYM=['Cramps','Lower back pain','Leg pain','Headache','Fatigue','Sleepiness','Mood swings','Irritability','Anxiety','Sadness','Bloating','Breast tenderness','Acne','Nausea','Appetite changes','Other'];
 const MCH=['My own Kruthi','Pallavi & Anupallavi','Charanam','Swaras','Voice practice','Revision'],PQ=['What happened today?','What made me happy?','What upset me?','What did I learn?','What am I proud of?','What should I improve tomorrow?'];
 /* ---------- local store + offline sync queue ---------- */
 let L=JSON.parse(localStorage.bd||'{"c":{},"q":[]}'),S={v:'today',date:today(),user:null,st:'offline',rng:'day',mr:'week',pm:today().slice(0,7),pmo:today().slice(0,7),sd:today(),q:''};
